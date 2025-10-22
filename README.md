@@ -43,9 +43,13 @@ cd projectest
 pip install -r requirements_enhanced.txt
 ```
 
-3. Ensure Docker is running:
+3. **Set up Docker** (see [DOCKER_SETUP.md](DOCKER_SETUP.md) for detailed instructions):
 ```bash
+# Verify Docker is installed and running
 docker --version
+
+# Test Docker
+docker run hello-world
 ```
 
 4. Run the application:

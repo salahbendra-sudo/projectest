@@ -27,10 +27,10 @@ pytest>=7.0.0
 black>=22.0.0
 flake8>=4.0.0
 
-# Security & Validation
-oletools>=1.60.0  # For VBA analysis
-
 # Optional: For enhanced chart extraction
 # (These would be used in production for better chart recognition)
 # pillow>=9.0.0
 # scikit-learn>=1.0.0
+
+# Note: oletools removed due to Python 3.13 compatibility issues
+# For VBA analysis in production, consider using alternative approaches
