@@ -290,16 +290,21 @@ class EnhancedExcelAnalyzer:
         charts = []
         
         try:
-            for chart in worksheet._charts:
-                chart_info = ChartInfo(
-                    sheet=sheet_name,
-                    name=getattr(chart, 'title', 'Untitled Chart'),
-                    chart_type=type(chart).__name__,
-                    data_range="",  # Would need more complex extraction
-                    title=getattr(chart.title, 'text', 'No Title') if hasattr(chart, 'title') else 'No Title',
-                    axis_labels={}
-                )
-                charts.append(chart_info)
+            # Check if worksheet has charts attribute
+            if hasattr(worksheet, '_charts'):
+                for chart in worksheet._charts:
+                    chart_info = ChartInfo(
+                        sheet=sheet_name,
+                        name=getattr(chart, 'title', 'Untitled Chart'),
+                        chart_type=type(chart).__name__,
+                        data_range="",  # Would need more complex extraction
+                        title=getattr(chart.title, 'text', 'No Title') if hasattr(chart, 'title') else 'No Title',
+                        axis_labels={}
+                    )
+                    charts.append(chart_info)
+            else:
+                # For ReadOnlyWorksheet or worksheets without direct chart access
+                logger.debug(f"No direct chart access for sheet {sheet_name}")
         except Exception as e:
             logger.warning(f"Chart extraction failed for sheet {sheet_name}: {str(e)}")
         

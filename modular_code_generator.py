@@ -128,7 +128,7 @@ class ModularCodeGenerator:
             ])
         
         # Add web framework
-        if any("streamlit" in file.path for file in self._generate_application(analysis_result, "streamlit")):
+        if any("streamlit" in file.path for file in self.generate_application(analysis_result, "streamlit")):
             packages.append("streamlit>=1.22.0")
         else:
             packages.extend([

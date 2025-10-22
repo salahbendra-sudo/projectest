@@ -128,6 +128,17 @@ class EnhancedFrontend:
             st.write("Please make sure your file is a valid Excel file.")
             return None
     
+    def _clean_dataframe_for_display(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Clean DataFrame to avoid Arrow serialization issues"""
+        df_clean = df.copy()
+        
+        # Convert object columns to string to avoid mixed type issues
+        for col in df_clean.columns:
+            if df_clean[col].dtype == 'object':
+                df_clean[col] = df_clean[col].astype(str)
+        
+        return df_clean
+    
     def _render_file_analysis(self, df: pd.DataFrame, filename: str):
         """Render file analysis information"""
         st.markdown("### 📊 File Analysis")
@@ -143,9 +154,12 @@ class EnhancedFrontend:
         with col4:
             st.metric("Data Points", len(df) * len(df.columns))
         
+        # Clean DataFrame for display
+        df_display = self._clean_dataframe_for_display(df)
+        
         # Show data preview
         st.markdown("#### 👀 Data Preview")
-        st.dataframe(df.head(10), use_container_width=True)
+        st.dataframe(df_display.head(10), width='stretch')
         
         # Show column information
         st.markdown("#### 📋 Column Information")
@@ -155,13 +169,13 @@ class EnhancedFrontend:
             'Non-Null Count': df.count(),
             'Null Count': df.isnull().sum()
         })
-        st.dataframe(col_info, use_container_width=True)
+        st.dataframe(col_info, width='stretch')
     
     def render_generation_section(self, file_info: Dict[str, Any]):
         """Render app generation section with progress tracking"""
         st.markdown("### 🎯 Generate Your Web App")
         
-        if st.button("🚀 Generate & Deploy App", key="generate_btn", use_container_width=True):
+        if st.button("🚀 Generate & Deploy App", key="generate_btn"):
             with st.spinner("Processing your Excel file..."):
                 return self._process_excel_file(file_info)
         
@@ -244,15 +258,15 @@ class EnhancedFrontend:
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            if st.button("🌐 Open App", use_container_width=True):
+            if st.button("🌐 Open App"):
                 st.markdown(f"<meta http-equiv='refresh' content='0;url={deployment.public_url}'>", unsafe_allow_html=True)
         
         with col2:
-            if st.button("📋 View Logs", use_container_width=True):
+            if st.button("📋 View Logs"):
                 self._show_application_logs(deployment.deployment_id)
         
         with col3:
-            if st.button("🔄 New App", use_container_width=True):
+            if st.button("🔄 New App"):
                 st.session_state.processing_result = None
                 st.session_state.uploaded_data = None
                 st.rerun()
@@ -272,7 +286,7 @@ class EnhancedFrontend:
         
         st.error(f"Error: {result.error_message}")
         
-        if st.button("🔄 Try Again", use_container_width=True):
+        if st.button("🔄 Try Again"):
             st.session_state.processing_result = None
             st.rerun()
     

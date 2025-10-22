@@ -48,8 +48,9 @@ class InstantDeployer:
             self.docker_client = docker.from_env()
             logger.info("Docker client initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize Docker client: {str(e)}")
-            raise RuntimeError("Docker is not available. Please install and start Docker.")
+            logger.warning(f"Docker not available: {str(e)}")
+            logger.info("Running in local mode without Docker deployment")
+            self.docker_client = None
     
     def deploy_application(self, project_files: List[Any], 
                          app_name: Optional[str] = None) -> DeploymentInfo:
@@ -63,6 +64,24 @@ class InstantDeployer:
             
             # Write project files to temp directory
             self._write_project_files(project_files, temp_dir)
+            
+            # Check if Docker is available
+            if self.docker_client is None:
+                logger.info("Docker not available, running in local mode")
+                # Create a mock deployment info for local mode
+                deployment_info = DeploymentInfo(
+                    deployment_id=deployment_id,
+                    public_url="http://localhost:8501",
+                    local_port=8501,
+                    container_id="local-mode",
+                    status="local",
+                    created_at=time.strftime("%Y-%m-%d %H:%M:%S")
+                )
+                
+                self.active_deployments[deployment_id] = deployment_info
+                logger.info("Application ready for local execution")
+                
+                return deployment_info
             
             # Build Docker image
             image_name = f"excel-to-web-{deployment_id[:8]}"
