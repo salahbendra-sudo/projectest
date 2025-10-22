@@ -130,7 +130,7 @@ class EnhancedExcelAnalyzer:
             # Basic file information
             analysis_result["file_info"] = self._get_file_info(file_path)
             
-            # Load workbook
+            # Load workbook for basic analysis (read-only for performance)
             wb = openpyxl.load_workbook(file_path, data_only=False, read_only=True)
             
             # Analyze each sheet
@@ -142,8 +142,15 @@ class EnhancedExcelAnalyzer:
                 # Extract formulas
                 sheet_formulas = self._extract_formulas_from_sheet(ws, sheet_name)
                 analysis_result["formulas"].extend(sheet_formulas)
-                
-                # Extract charts
+            
+            wb.close()
+            
+            # Load workbook again in normal mode for chart extraction
+            wb = openpyxl.load_workbook(file_path, data_only=False, read_only=False)
+            
+            # Extract charts (requires normal mode)
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
                 sheet_charts = self._extract_charts_from_sheet(ws, sheet_name)
                 analysis_result["charts"].extend(sheet_charts)
             
@@ -291,14 +298,26 @@ class EnhancedExcelAnalyzer:
         charts = []
         
         try:
-            # Check if worksheet has charts attribute
-            if hasattr(worksheet, '_charts'):
+            # Check if worksheet has charts attribute (normal mode)
+            if hasattr(worksheet, '_charts') and worksheet._charts:
                 for chart in worksheet._charts:
                     chart_info = ChartInfo(
                         sheet=sheet_name,
                         name=getattr(chart, 'title', 'Untitled Chart'),
                         chart_type=type(chart).__name__,
                         data_range="",  # Would need more complex extraction
+                        title=getattr(chart.title, 'text', 'No Title') if hasattr(chart, 'title') else 'No Title',
+                        axis_labels={}
+                    )
+                    charts.append(chart_info)
+            # Check for charts in read-only mode
+            elif hasattr(worksheet, 'charts') and worksheet.charts:
+                for chart in worksheet.charts:
+                    chart_info = ChartInfo(
+                        sheet=sheet_name,
+                        name=getattr(chart, 'title', 'Untitled Chart'),
+                        chart_type=type(chart).__name__,
+                        data_range="",
                         title=getattr(chart.title, 'text', 'No Title') if hasattr(chart, 'title') else 'No Title',
                         axis_labels={}
                     )

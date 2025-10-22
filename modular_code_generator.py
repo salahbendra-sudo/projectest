@@ -80,6 +80,22 @@ class ModularCodeGenerator:
         # Generate calculation section
         calculation_code = self._generate_calculation_code(analysis_result)
         
+        # Handle plotly imports and visualization tab
+        if charts:
+            plotly_imports = "import plotly.express as px\nimport plotly.graph_objects as go"
+            visualization_tab = 'tab_names.append("Visualizations")'
+            visualization_tab_content = '''
+    with tabs[1]:
+        st.header("Visualizations")
+        visualizations = create_visualizations(data)
+        for name, fig in visualizations.items():
+            st.plotly_chart(fig, use_container_width=True)
+'''
+        else:
+            plotly_imports = "# No plotly imports needed - no charts detected"
+            visualization_tab = "# No visualization tab needed - no charts detected"
+            visualization_tab_content = "# No visualization tab content - no charts detected"
+        
         # Replace template placeholders
         content = template.replace("{{DATA_LOADING}}", data_loading_code)
         content = content.replace("{{VISUALIZATION}}", visualization_code)
@@ -88,6 +104,9 @@ class ModularCodeGenerator:
         content = content.replace("{{FORMULA_COUNT}}", str(len(formulas)))
         content = content.replace("{{CHART_COUNT}}", str(len(charts)))
         content = content.replace("{{TEMPLATE_TYPE}}", template_type.get("name", "Custom"))
+        content = content.replace("{{PLOTLY_IMPORTS}}", plotly_imports)
+        content = content.replace("{{VISUALIZATION_TAB}}", visualization_tab)
+        content = content.replace("{{VISUALIZATION_TAB_CONTENT}}", visualization_tab_content)
         
         return GeneratedFile("app.py", content)
     
@@ -426,8 +445,7 @@ def vlookup(lookup_value, table_array, col_index_num, range_lookup=True):
         return """
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+{{PLOTLY_IMPORTS}}
 
 # Configure page
 st.set_page_config(
@@ -485,21 +503,21 @@ def main():
         return
     
     # Create tabs for different sections
-    tab1, tab2, tab3 = st.tabs(["Data Explorer", "Visualizations", "Calculations"])
+    tab_names = ["Data Explorer"]
+    {{VISUALIZATION_TAB}}
+    tab_names.append("Calculations")
     
-    with tab1:
+    tabs = st.tabs(tab_names)
+    
+    with tabs[0]:
         st.header("Data Explorer")
         selected_sheet = st.selectbox("Select Sheet", list(data.keys()))
         if selected_sheet in data:
             st.dataframe(data[selected_sheet], use_container_width=True)
     
-    with tab2:
-        st.header("Visualizations")
-        visualizations = create_visualizations(data)
-        for name, fig in visualizations.items():
-            st.plotly_chart(fig, use_container_width=True)
+    {{VISUALIZATION_TAB_CONTENT}}
     
-    with tab3:
+    with tabs[-1]:
         st.header("Calculations")
         results = perform_calculations(data)
         for key, value in results.items():
