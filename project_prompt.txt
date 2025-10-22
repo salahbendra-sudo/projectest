@@ -1,0 +1,15 @@
+Generate a complete Streamlit web application that:
+1. Visualizes all  data with interactive Plotly charts
+2. Implements all original  formulas as calculations
+3. Presents the audit findings in a dashboard tab
+4. Includes filters for all categorical columns
+5. Has download buttons for both raw and processed data
+6. Matches our corporate UI style with:
+   - Dark theme option
+   - Responsive layout
+   - Accessibility features
+7. Contains these specific pages:
+   - Data Explorer (main view)
+   - Audit Results
+   - Formula Documentation
+8. All business logic must be preserved exactly
