@@ -127,14 +127,8 @@ class ModularCodeGenerator:
                 "matplotlib>=3.5.0"
             ])
         
-        # Add web framework
-        if any("streamlit" in file.path for file in self.generate_application(analysis_result, "streamlit")):
-            packages.append("streamlit>=1.22.0")
-        else:
-            packages.extend([
-                "fastapi>=0.68.0",
-                "uvicorn>=0.15.0"
-            ])
+        # Add web framework - default to streamlit for now
+        packages.append("streamlit>=1.22.0")
         
         content = template.replace("{{PACKAGES}}", "\n".join(packages))
         

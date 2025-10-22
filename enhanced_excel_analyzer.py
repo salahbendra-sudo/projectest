@@ -14,7 +14,7 @@ import openpyxl
 import xlrd
 import re
 import json
-from typing import Dict, List, Set, Tuple, Optional, Any
+from typing import Dict, List, Set, Tuple, Optional, Any, Union
 from pathlib import Path
 import logging
 from dataclasses import dataclass
@@ -163,13 +163,14 @@ class EnhancedExcelAnalyzer:
             logger.error(f"Excel analysis failed: {str(e)}")
             raise
     
-    def _get_file_info(self, file_path: Path) -> Dict[str, Any]:
+    def _get_file_info(self, file_path: Union[str, Path]) -> Dict[str, Any]:
         """Get basic file information"""
+        path = Path(file_path)
         return {
-            "filename": file_path.name,
-            "size": file_path.stat().st_size,
-            "extension": file_path.suffix.lower(),
-            "modified_time": file_path.stat().st_mtime
+            "filename": path.name,
+            "size": path.stat().st_size,
+            "extension": path.suffix.lower(),
+            "modified_time": path.stat().st_mtime
         }
     
     def _analyze_sheet(self, worksheet, sheet_name: str) -> Dict[str, Any]:
