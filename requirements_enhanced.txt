@@ -1,0 +1,36 @@
+# Enhanced Excel-to-Web Application Generator Requirements
+
+# Core Dependencies
+streamlit>=1.22.0
+pandas>=1.5.0
+numpy>=1.21.0
+openpyxl>=3.0.0
+xlrd>=2.0.0
+
+# Excel Analysis & Processing
+plotly>=5.0.0
+matplotlib>=3.5.0
+
+# Web Framework (Optional - for FastAPI generation)
+fastapi>=0.68.0
+uvicorn>=0.15.0
+
+# Deployment & Containerization
+docker>=6.0.0
+requests>=2.28.0
+
+# Data Processing & Utilities
+python-dotenv>=0.19.0
+
+# Development & Testing
+pytest>=7.0.0
+black>=22.0.0
+flake8>=4.0.0
+
+# Optional: For enhanced chart extraction
+# (These would be used in production for better chart recognition)
+# pillow>=9.0.0
+# scikit-learn>=1.0.0
+
+# Note: oletools removed due to Python 3.13 compatibility issues
+# For VBA analysis in production, consider using alternative approaches
