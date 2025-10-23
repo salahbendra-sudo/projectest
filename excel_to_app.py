@@ -9,6 +9,7 @@ import shutil
 from pathlib import Path
 import logging
 import requests
+from local_analyzer import LocalExcelAnalyzer
 
 # Configure logging
 logging.basicConfig(
@@ -78,6 +79,94 @@ def get_instructions():
         logger.error(f"Instructions file error: {str(e)}")
         return "Analyze the Excel file and generate a Python project based on the data."
 
+def generate_app_locally(uploaded_file, analysis_model: str = "local", generation_model: str = "local"):
+    """Generate app using local analyzer as fallback"""
+    try:
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+            tmp_file.write(uploaded_file.getvalue())
+            tmp_path = tmp_file.name
+        
+        # Analyze with local analyzer
+        analyzer = LocalExcelAnalyzer()
+        analysis = analyzer.analyze_excel_file(tmp_path)
+        
+        # Generate basic app code
+        app_code = analyzer.generate_basic_app_code(analysis)
+        
+        # Create project directory
+        project_dir = os.path.join(tempfile.gettempdir(), f"project_{uuid.uuid4().hex[:8]}")
+        os.makedirs(project_dir, exist_ok=True)
+        
+        # Write main app file
+        app_file = os.path.join(project_dir, "app.py")
+        with open(app_file, 'w') as f:
+            f.write(app_code)
+        
+        # Create requirements.txt
+        requirements_file = os.path.join(project_dir, "requirements.txt")
+        with open(requirements_file, 'w') as f:
+            f.write("""streamlit==1.28.0
+pandas==2.1.0
+plotly==5.15.0
+openpyxl==3.1.2
+""")
+        
+        # Create README
+        readme_file = os.path.join(project_dir, "README.md")
+        with open(readme_file, 'w') as f:
+            f.write(f"""# Generated Excel Data Explorer
+
+This app was automatically generated from your Excel file: {uploaded_file.name}
+
+## How to Run
+
+1. Install dependencies: `pip install -r requirements.txt`
+2. Run the app: `streamlit run app.py`
+
+## Features
+- Data exploration and visualization
+- Interactive filters
+- Data export capabilities
+""")
+        
+        # Create zip file
+        project_zip = os.path.join(tempfile.gettempdir(), f"project_{uuid.uuid4().hex[:8]}.zip")
+        with zipfile.ZipFile(project_zip, 'w') as zipf:
+            for root, _, files in os.walk(project_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, project_dir)
+                    zipf.write(file_path, arcname)
+        
+        # Cleanup
+        os.unlink(tmp_path)
+        shutil.rmtree(project_dir)
+        
+        return project_zip, "Local analysis completed successfully"
+        
+    except Exception as e:
+        logger.error(f"Local app generation failed: {str(e)}")
+        raise RuntimeError(f"Local app generation failed: {str(e)}")
+
+def test_api_availability():
+    """Test if the API services are available"""
+    try:
+        # Test unified API
+        response = requests.get(UNIFIED_API_URL.replace("/analyze-and-generate", "/docs"), timeout=5)
+        unified_available = response.status_code == 200
+    except:
+        unified_available = False
+    
+    try:
+        # Test deploy API
+        response = requests.get(DEPLOY_API_URL.replace("/deploy_streamlit", "/docs"), timeout=5)
+        deploy_available = response.status_code == 200
+    except:
+        deploy_available = False
+    
+    return unified_available, deploy_available
+
 def validate_excel_file(df):
     """Validate uploaded Excel file and return errors if any"""
     errors = []
@@ -114,6 +203,19 @@ def process_excel_to_deployment(uploaded_excel_path: str) -> str:
     # Initialize variables to avoid reference before assignment
     raw_zip_path = None
     project_zip = None
+    
+    # Test API availability first
+    unified_available, deploy_available = test_api_availability()
+    
+    if not unified_available:
+        # Use local fallback
+        logger.info("API unavailable, using local fallback")
+        with open(uploaded_excel_path, 'rb') as excel_file:
+            project_zip, message = generate_app_locally(excel_file)
+        
+        # For local generation, we return a download link instead of deployment
+        # Create a download URL simulation
+        return f"local://{project_zip}"
     
     try:
         # Step 1: Call unified_api
@@ -152,18 +254,22 @@ def process_excel_to_deployment(uploaded_excel_path: str) -> str:
         project_zip = extract_project_files(raw_zip_path)
         
         # Step 3: Call deploy API
-        with open(project_zip, 'rb') as project_file:
-            deploy_response = requests.post(
-                DEPLOY_API_URL,
-                files={"file": ("project.zip", project_file)},
-                timeout=300
-            )
-            
-        if deploy_response.status_code == 502:
-            raise RuntimeError("Deployment service is currently unavailable. Please try again later.")
-        deploy_response.raise_for_status()
+        if deploy_available:
+            with open(project_zip, 'rb') as project_file:
+                deploy_response = requests.post(
+                    DEPLOY_API_URL,
+                    files={"file": ("project.zip", project_file)},
+                    timeout=300
+                )
+                
+            if deploy_response.status_code == 502:
+                raise RuntimeError("Deployment service is currently unavailable. Please try again later.")
+            deploy_response.raise_for_status()
 
-        return deploy_response.json()["public_url"]
+            return deploy_response.json()["public_url"]
+        else:
+            # Deployment API unavailable, return download link
+            return f"download://{project_zip}"
 
     except requests.exceptions.RequestException as e:
         logger.error(f"API error: {str(e)}")
@@ -320,10 +426,14 @@ def main():
                                 update_progress_bar(progress_bar, status_container, 50, "Generating project code...", "👨‍💻")
                                 
                                 # Process through pipeline
-                                st.session_state.app_url = process_excel_to_deployment(tmp_path)
+                                result = process_excel_to_deployment(tmp_path)
+                                st.session_state.app_url = result
                                 st.session_state.app_generated = True
                                 
-                                update_progress_bar(progress_bar, status_container, 100, "App deployed successfully!", "🎉")
+                                if result.startswith("local://") or result.startswith("download://"):
+                                    update_progress_bar(progress_bar, status_container, 100, "App generated successfully! Download ready.", "📥")
+                                else:
+                                    update_progress_bar(progress_bar, status_container, 100, "App deployed successfully!", "🎉")
                                 time.sleep(1)
                                 
                                 # Cleanup
@@ -352,9 +462,135 @@ def main():
                 st.markdown('</div>', unsafe_allow_html=True)
     
     else:
-        # Success screen (keep existing success screen)
-        # ...
-        pass
+        # Success screen
+        st.markdown('<div class="success-container">', unsafe_allow_html=True)
+        
+        app_url = st.session_state.app_url
+        
+        if app_url.startswith("local://"):
+            # Local generation - provide download
+            zip_path = app_url.replace("local://", "")
+            
+            st.success("🎉 Your app has been generated successfully!")
+            st.markdown("### 📱 Your Generated App")
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.markdown("""
+                #### What's Included:
+                - **app.py** - Main Streamlit application
+                - **requirements.txt** - Dependencies
+                - **README.md** - Setup instructions
+                
+                #### How to Run:
+                1. Download the project below
+                2. Extract the ZIP file
+                3. Install dependencies: `pip install -r requirements.txt`
+                4. Run the app: `streamlit run app.py`
+                """)
+            
+            with col2:
+                # Download button
+                with open(zip_path, 'rb') as f:
+                    zip_data = f.read()
+                
+                st.download_button(
+                    label="📥 Download Project",
+                    data=zip_data,
+                    file_name="generated_app.zip",
+                    mime="application/zip",
+                    use_container_width=True
+                )
+                
+                st.info("💡 **Local Mode**: APIs unavailable, using local generation")
+        
+        elif app_url.startswith("download://"):
+            # API generation but no deployment - provide download
+            zip_path = app_url.replace("download://", "")
+            
+            st.success("🎉 Your app has been generated successfully!")
+            st.markdown("### 📱 Your Generated App")
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.markdown("""
+                #### What's Included:
+                - **app.py** - Main Streamlit application
+                - **requirements.txt** - Dependencies
+                - **README.md** - Setup instructions
+                
+                #### How to Run:
+                1. Download the project below
+                2. Extract the ZIP file
+                3. Install dependencies: `pip install -r requirements.txt`
+                4. Run the app: `streamlit run app.py`
+                """)
+            
+            with col2:
+                # Download button
+                with open(zip_path, 'rb') as f:
+                    zip_data = f.read()
+                
+                st.download_button(
+                    label="📥 Download Project",
+                    data=zip_data,
+                    file_name="generated_app.zip",
+                    mime="application/zip",
+                    use_container_width=True
+                )
+                
+                st.info("💡 **Download Mode**: Deployment service unavailable")
+        
+        else:
+            # Full deployment - show live URL
+            st.success("🎉 Your app has been deployed successfully!")
+            st.markdown("### 🌐 Your Live App")
+            
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                st.markdown(f"""
+                Your application is now live and accessible at:
+                
+                **[{app_url}]({app_url})**
+                
+                #### Features:
+                - Interactive data exploration
+                - Real-time visualizations
+                - Download capabilities
+                - Responsive design
+                """)
+            
+            with col2:
+                st.markdown(f"""
+                <div style="text-align: center;">
+                    <a href="{app_url}" target="_blank">
+                        <button style="
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                            border: none;
+                            padding: 12px 24px;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            margin: 10px 0;
+                        ">
+                            🚀 Open Your App
+                        </button>
+                    </a>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Reset button
+        st.markdown("---")
+        if st.button("🔄 Generate Another App", use_container_width=True):
+            st.session_state.app_generated = False
+            st.session_state.app_url = None
+            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
